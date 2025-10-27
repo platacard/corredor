@@ -1,6 +1,6 @@
 # Shell (aka Corredor)
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-1-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-2-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 A wrapper to call shell commands from Swift code. A small part of the larger iOS deploy infrastructure at Plata.
@@ -31,6 +31,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
   <tbody>
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/adurymanov"><img src="https://avatars.githubusercontent.com/u/21358938?v=4?s=100" width="100px;" alt="Andrei"/><br /><sub><b>Andrei</b></sub></a><br /><a href="https://github.com/platacard/corredor/commits?author=adurymanov" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/mstroshin"><img src="https://avatars.githubusercontent.com/u/9129577?v=4?s=100" width="100px;" alt="Maksim Troshin"/><br /><sub><b>Maksim Troshin</b></sub></a><br /><a href="https://github.com/platacard/corredor/commits?author=mstroshin" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>
