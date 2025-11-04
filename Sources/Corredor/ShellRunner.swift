@@ -108,10 +108,17 @@ public struct ShellRunner: Sendable {
         if process.terminationStatus == 0 {
             return accumulatedOutput.value.trimmingCharacters(in: .whitespacesAndNewlines)
         } else {
+            let command = options.contains(.printCommand) ? command : "<redacted>"
+            var totalOutput = accumulatedError.value.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if options.contains(.printOutput) {
+                totalOutput += "\n" + accumulatedOutput.value.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+
             throw Error.commandFailed(
                 command: command,
                 exitCode: process.terminationStatus,
-                output: accumulatedError.value.trimmingCharacters(in: .whitespacesAndNewlines)
+                output: totalOutput
             )
         }
     }
