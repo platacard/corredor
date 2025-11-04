@@ -19,9 +19,50 @@ final class CorredorTests: XCTestCase {
                 return
             }
 
+            let expectedErrorDescription = "Command: <redacted>\nExitCode: 1\nError Output:\n"
+
             switch runnerError {
             case let .commandFailed(command, exitCode, output):
                 XCTAssertTrue(!command.isEmpty || exitCode != 0 || !output.isEmpty)
+                XCTAssertEqual(runnerError.errorDescription, expectedErrorDescription)
+            default:
+                XCTFail("Unexpected error type: \(runnerError)")
+            }
+        }
+    }
+
+    func testCommandFailedErrorPrintsOutputNotCommand() {
+        XCTAssertThrowsError(try Shell.command("which unexisted", options: [.printOutput]).run()) { error in
+            guard let runnerError = error as? ShellRunner.Error else {
+                XCTFail("Expected ShellRunner.Error, got \(error)")
+                return
+            }
+
+            let expectedErrorDescription = "Command: <redacted>\nExitCode: 1\nError Output:\n\nunexisted not found"
+
+            switch runnerError {
+            case let .commandFailed(command, exitCode, output):
+                XCTAssertTrue(!command.isEmpty || exitCode != 0 || !output.isEmpty)
+                XCTAssertEqual(runnerError.errorDescription, expectedErrorDescription)
+            default:
+                XCTFail("Unexpected error type: \(runnerError)")
+            }
+        }
+    }
+
+    func testCommandFailedErrorPrintsCommand() {
+        XCTAssertThrowsError(try Shell.command("which unexisted", options: [.printCommand, .printOutput]).run()) { error in
+            guard let runnerError = error as? ShellRunner.Error else {
+                XCTFail("Expected ShellRunner.Error, got \(error)")
+                return
+            }
+
+            let expectedErrorDescription = "Command: which unexisted \nExitCode: 1\nError Output:\n\nunexisted not found"
+
+            switch runnerError {
+            case let .commandFailed(command, exitCode, output):
+                XCTAssertTrue(!command.isEmpty || exitCode != 0 || !output.isEmpty)
+                XCTAssertEqual(runnerError.errorDescription, expectedErrorDescription)
             default:
                 XCTFail("Unexpected error type: \(runnerError)")
             }
