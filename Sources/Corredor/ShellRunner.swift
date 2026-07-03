@@ -36,6 +36,19 @@ public struct ShellRunner: Sendable {
     /// - Throws: An error if the command execution fails
     @discardableResult
     public func run() throws(Error) -> String {
+        try run(onLine: nil)
+    }
+
+    /// Executes a shell command, streaming each complete non-empty output
+    /// line (stdout and stderr) to the callback as it arrives, in addition to
+    /// the regular capture behavior. The callback may be invoked from
+    /// concurrent background queues.
+    @discardableResult
+    public func run(onLine: @escaping @Sendable (String) -> Void) throws(Error) -> String {
+        try run(onLine: Optional(onLine))
+    }
+
+    private func run(onLine: (@Sendable (String) -> Void)?) throws(Error) -> String {
         let process = Process()
         let outputPipe = Pipe()
         let errorPipe = Pipe()
@@ -55,6 +68,7 @@ public struct ShellRunner: Sendable {
 
         final class Output {
             var value: String = ""
+            var pendingLine: String = ""
         }
 
         var readSources: [DispatchSourceRead] = []
@@ -75,6 +89,17 @@ public struct ShellRunner: Sendable {
                     output.value += str
                     if shouldPrint {
                         print(str, terminator: "")
+                    }
+                    if let onLine {
+                        output.pendingLine += str
+                        while let newline = output.pendingLine.firstIndex(of: "\n") {
+                            let line = String(output.pendingLine[..<newline])
+                                .trimmingCharacters(in: .whitespacesAndNewlines)
+                            output.pendingLine = String(output.pendingLine[output.pendingLine.index(after: newline)...])
+                            if !line.isEmpty {
+                                onLine(line)
+                            }
+                        }
                     }
                 }
             }
