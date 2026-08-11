@@ -10,7 +10,15 @@ public enum ShellOption: Sendable {
 }
 
 public struct ShellRunner: Sendable {
-    private let command: String
+    // Argv invocations execute the binary directly: arguments are passed
+    // verbatim, so secrets with shell-special characters survive and are
+    // never echoed back by shell errors.
+    private enum Invocation: Sendable {
+        case shell(String)
+        case argv([String], currentDirectory: URL?)
+    }
+
+    private let invocation: Invocation
     private let environment: [String: String]
     private let options: [ShellOption]
 
@@ -22,9 +30,43 @@ public struct ShellRunner: Sendable {
         environment: [String: String] = [:],
         options: [ShellOption] = []
     ) {
-        self.command = command
+        self.invocation = .shell(command)
         self.environment = environment
         self.options = options
+    }
+
+    init(
+        argv: [String],
+        currentDirectory: URL? = nil,
+        environment: [String: String] = [:],
+        options: [ShellOption] = []
+    ) {
+        self.invocation = .argv(argv, currentDirectory: currentDirectory)
+        self.environment = environment
+        self.options = options
+    }
+
+    private var command: String {
+        switch invocation {
+        case .shell(let command): command
+        case .argv(let argv, _): argv.joined(separator: " ")
+        }
+    }
+
+    private func configure(_ process: Process) {
+        process.environment = env.merging(environment, uniquingKeysWith: { _, new in new })
+
+        switch invocation {
+        case .shell(let command):
+            process.executableURL = URL(fileURLWithPath: shell)
+            process.arguments = ["--login", "-c", command]
+        case .argv(let argv, let currentDirectory):
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+            process.arguments = argv
+            if let currentDirectory {
+                process.currentDirectoryURL = currentDirectory
+            }
+        }
     }
 
     /// Executes a shell command
@@ -58,10 +100,7 @@ public struct ShellRunner: Sendable {
             print(command)
         }
 
-        process.environment = env.merging(environment, uniquingKeysWith: { _, new in new })
-        process.executableURL = URL(fileURLWithPath: shell)
-
-        process.arguments = ["--login", "-c", command]
+        configure(process)
 
         process.standardOutput = outputPipe
         process.standardError = errorPipe
@@ -164,9 +203,7 @@ public struct ShellRunner: Sendable {
             print(command)
         }
 
-        process.environment = env.merging(environment, uniquingKeysWith: { _, new in new })
-        process.executableURL = URL(fileURLWithPath: shell)
-        process.arguments = ["--login", "-c", command]
+        configure(process)
 
         // For background tasks, we typically don't need to capture output
         // but we can redirect to /dev/null to prevent blocking

@@ -31,7 +31,8 @@ public struct Corredor: Sendable {
         options: [ShellOption] = []
     ) -> ShellRunner {
         ShellRunner(
-            command: "cd \(folder.path()); \(arguments.joined(separator: " "))",
+            argv: arguments,
+            currentDirectory: folder,
             environment: environment,
             options: options
         )
@@ -43,7 +44,7 @@ public struct Corredor: Sendable {
         options: [ShellOption] = []
     ) -> ShellRunner {
         ShellRunner(
-            command: arguments.joined(separator: " "),
+            argv: arguments,
             environment: environment,
             options: options
         )

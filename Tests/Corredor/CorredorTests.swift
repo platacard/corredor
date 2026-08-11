@@ -89,4 +89,29 @@ final class CorredorTests: XCTestCase {
         }
     }
     **/
+
+    func testArgumentsPassSpecialCharactersVerbatim() throws {
+        let output = try Shell.arguments(["echo", "{brace,glob}*?~$HOME"]).run()
+        XCTAssertEqual(output, "{brace,glob}*?~$HOME")
+    }
+
+    func testArgumentsInFolderSetsWorkingDirectory() throws {
+        let folder = URL(fileURLWithPath: NSTemporaryDirectory()).resolvingSymlinksInPath()
+        let output = try Shell.arguments(["pwd"], in: folder).run()
+        XCTAssertEqual(URL(fileURLWithPath: output).resolvingSymlinksInPath().path, folder.path)
+    }
+
+    func testArgumentsEnvironmentIsPassed() throws {
+        let output = try Shell.arguments(
+            ["printenv", "CORREDOR_TEST_VAR"],
+            environment: ["CORREDOR_TEST_VAR": "va{l}ue*?"]
+        ).run()
+        XCTAssertEqual(output, "va{l}ue*?")
+    }
+
+    func testArgumentsFailureKeepsCommandRedacted() {
+        XCTAssertThrowsError(try Shell.arguments(["false"]).run()) { error in
+            XCTAssertTrue(error.localizedDescription.contains("<redacted>"))
+        }
+    }
 }
