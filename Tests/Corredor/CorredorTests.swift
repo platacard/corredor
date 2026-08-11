@@ -114,4 +114,14 @@ final class CorredorTests: XCTestCase {
             XCTAssertTrue(error.localizedDescription.contains("<redacted>"))
         }
     }
+
+    func testArgumentsElementWithSpaceArrivesAsSingleArgument() throws {
+        let output = try Shell.arguments(["/bin/sh", "-c", "echo $#", "sh", "--endpoint https://example.com/"]).run()
+        XCTAssertEqual(output, "1")
+    }
+
+    func testArgumentsAreNotWordSplit() throws {
+        let output = try Shell.arguments(["printf", "%s\n", "--endpoint", "https://example.com/", "flag value"]).run()
+        XCTAssertEqual(output, "--endpoint\nhttps://example.com/\nflag value")
+    }
 }
