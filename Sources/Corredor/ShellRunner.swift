@@ -83,8 +83,8 @@ public struct ShellRunner: Sendable {
 
     /// Executes a shell command, streaming each complete non-empty output
     /// line (stdout and stderr) to the callback as it arrives, in addition to
-    /// the regular capture behavior. The callback may be invoked from
-    /// concurrent background queues.
+    /// the regular capture behavior. The callback is invoked on the calling
+    /// thread.
     @discardableResult
     public func run(onLine: @escaping @Sendable (String) -> Void) throws(Error) -> String {
         try run(onLine: Optional(onLine))
@@ -105,78 +105,39 @@ public struct ShellRunner: Sendable {
         process.standardOutput = outputPipe
         process.standardError = errorPipe
 
-        final class Output {
-            var value: String = ""
-            var pendingLine: String = ""
-        }
-
-        var readSources: [DispatchSourceRead] = []
-
-        func handleOutput(for pipe: Pipe, shouldPrint: Bool, output: Output, group: DispatchGroup) {
-            let outputHandle = pipe.fileHandleForReading
-            let outputFD = outputHandle.fileDescriptor
-
-            let outputSource = DispatchSource.makeReadSource(fileDescriptor: outputFD, queue: DispatchQueue.global())
-            group.enter()
-            outputSource.setEventHandler { [weak outputSource] in
-                let data = outputHandle.availableData
-                guard !data.isEmpty else {
-                    outputSource?.cancel()
-                    return
-                }
-                if let str = String(data: data, encoding: .utf8) {
-                    output.value += str
-                    if shouldPrint {
-                        print(str, terminator: "")
-                    }
-                    if let onLine {
-                        output.pendingLine += str
-                        while let newline = output.pendingLine.firstIndex(of: "\n") {
-                            let line = String(output.pendingLine[..<newline])
-                                .trimmingCharacters(in: .whitespacesAndNewlines)
-                            output.pendingLine = String(output.pendingLine[output.pendingLine.index(after: newline)...])
-                            if !line.isEmpty {
-                                onLine(line)
-                            }
-                        }
-                    }
-                }
-            }
-
-            outputSource.setCancelHandler {
-                try? outputHandle.close()
-                group.leave()
-            }
-
-            outputSource.resume()
-            readSources.append(outputSource)
-        }
-
-        let readGroup = DispatchGroup()
-
-        let accumulatedOutput = Output()
-        handleOutput(for: outputPipe, shouldPrint: options.contains(.printOutput), output: accumulatedOutput, group: readGroup)
-
-        let accumulatedError = Output()
-        handleOutput(for: errorPipe, shouldPrint: options.contains(.printOutput), output: accumulatedError, group: readGroup)
-
         do {
             try process.run()
         } catch {
             throw .runFailed(error)
         }
 
+        let shouldPrint = options.contains(.printOutput)
+        let standardOutput = OutputCapture(shouldPrint: shouldPrint, onLine: onLine)
+        let standardError = OutputCapture(shouldPrint: shouldPrint, onLine: onLine)
+        let readFailure = OutputCapture.drain([
+            (outputPipe.fileHandleForReading.fileDescriptor, standardOutput),
+            (errorPipe.fileHandleForReading.fileDescriptor, standardError),
+        ])
+        try? outputPipe.fileHandleForReading.close()
+        try? errorPipe.fileHandleForReading.close()
+
+        if readFailure != nil {
+            process.terminate()
+        }
         process.waitUntilExit()
-        readGroup.wait()
+
+        if let readFailure {
+            throw .runFailed(NSError(domain: NSPOSIXErrorDomain, code: Int(readFailure)))
+        }
 
         if process.terminationStatus == 0 {
-            return accumulatedOutput.value.trimmingCharacters(in: .whitespacesAndNewlines)
+            return standardOutput.text.trimmingCharacters(in: .whitespacesAndNewlines)
         } else {
             let command = options.contains(.printCommand) ? command : "<redacted>"
-            var totalOutput = accumulatedError.value.trimmingCharacters(in: .whitespacesAndNewlines)
+            var totalOutput = standardError.text.trimmingCharacters(in: .whitespacesAndNewlines)
 
-            if options.contains(.printOutput) {
-                totalOutput += "\n" + accumulatedOutput.value.trimmingCharacters(in: .whitespacesAndNewlines)
+            if shouldPrint {
+                totalOutput += "\n" + standardOutput.text.trimmingCharacters(in: .whitespacesAndNewlines)
             }
 
             throw Error.commandFailed(
